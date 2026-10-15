@@ -3,6 +3,12 @@ include("${CMAKE_CURRENT_LIST_DIR}/ApfsUtilTest.cmake")
 run(0 valid.img)
 contains("${output}" "42 : 'test-snapshot'")
 
+foreach(name bad-volume bad-volume-magic bad-volume-type missing-volume)
+	run(3 "${name}.img")
+	contains("${errors}" "Volume 0: metadata unavailable or unreadable")
+	contains("${output}" "Name: +System")
+endforeach()
+
 foreach(name bad-snapshots missing-snapshots bad-first-snapshot bad-later-snapshot bad-snapshot-name
 	snapshot-short-key snapshot-short-value snapshot-missing-value snapshot-empty-name snapshot-unterminated-name)
 	run(3 "${name}.img")

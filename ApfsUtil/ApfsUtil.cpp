@@ -128,8 +128,13 @@ int main(int argc, char *argv[])
 		if (container->Init()) {
 			// printf("Listing volumes:\n");
 			for (int k = 0; k < NX_MAX_FILE_SYSTEMS; k++) {
-				if (!container->GetVolumeInfo(k, apsb))
+				if (!container->HasVolume(k))
 					continue;
+				if (!container->GetVolumeInfo(k, apsb)) {
+					fprintf(stderr, "Volume %d: metadata unavailable or unreadable.\n", k);
+					status = PartialInventory;
+					continue;
+				}
 				printf("Volume %d ", k);
 				print_apfs_uuid(apsb.apfs_vol_uuid);
 				printf("\n");
