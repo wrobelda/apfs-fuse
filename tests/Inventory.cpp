@@ -209,8 +209,29 @@ int main(int argc, char **argv)
 {
 	require(argc == 2, "fixture output directory argument");
 	const std::string dir = std::string(argv[1]) + "/";
+	Fixture key_failure;
+	key_failure.bytes[9 * Fixture::block_size] ^= 1;
+	key_failure.write(dir + "key-failure.img");
 	Fixture valid;
 	valid.write(dir + "valid.img");
+	Fixture no_keys;
+	for (size_t block : {0, 2}) {
+		no_keys.object<nx_superblock_t>(block).nx_keylocker = {};
+		no_keys.checksum(block);
+	}
+	no_keys.write(dir + "no-keylocker.img");
+
+	for (size_t block : {0, 1, 3, 4, 5}) {
+		Fixture image;
+		image.bytes[block * Fixture::block_size] ^= 1;
+		ApfsContainer container(&image, 0, image.GetSize());
+		require(!container.Init(), "container checksum failure remains fatal");
+		image.write(dir + "bad-block-" + std::to_string(block) + ".img");
+	}
+	Fixture invalid;
+	invalid.object<nx_superblock_t>(0).nx_magic = 0;
+	invalid.checksum(0);
+	invalid.write(dir + "bad-magic.img");
 	Fixture volume;
 	volume.bytes[6 * Fixture::block_size] ^= 1;
 	volume.write(dir + "bad-volume.img");

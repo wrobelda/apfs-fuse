@@ -2,11 +2,10 @@
 #include <ApfsLib/Device.h>
 #include <ApfsLib/GptPartitionMap.h>
 
-#include <cerrno>
 #include <cinttypes>
 #include <cstdio>
 
-enum ExitStatus { Success = 0, PartialInventory = 3 };
+enum ExitStatus { Success = 0, Failure = 1, ArgumentError = 2, PartialInventory = 3 };
 
 static bool print_snapshots(ApfsContainer &container, const apfs_superblock_t &apsb)
 {
@@ -99,7 +98,7 @@ int main(int argc, char *argv[])
 	if (argc < 2)
 	{
 		printf("Syntax: %s [device]\n", argv[0]);
-		return EINVAL;
+		return ArgumentError;
 	}
 
 	devname = argv[1];
@@ -164,7 +163,8 @@ int main(int argc, char *argv[])
 				printf("\n");
 			}
 		} else {
-			printf("Unable to open APFS container\n");
+			fprintf(stderr, "Unable to open APFS container\n");
+			status = Failure;
 		}
 
 		delete container;
@@ -172,8 +172,8 @@ int main(int argc, char *argv[])
 		device->Close();
 		delete device;
 	} else {
-		printf("Error opening device.\n");
-		return EIO;
+		fprintf(stderr, "Error opening device.\n");
+		return Failure;
 	}
 
 

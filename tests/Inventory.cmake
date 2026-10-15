@@ -1,14 +1,25 @@
 include("${CMAKE_CURRENT_LIST_DIR}/ApfsUtilTest.cmake")
 
+run(2)
+run(1 missing.img)
+run(1 key-failure.img)
+contains("${errors}" "Initialization of KeyManager failed")
+contains("${errors}" "Unable to open APFS container")
 run(0 valid.img)
+contains("${output}" "Name: +Data\nCapacity Consumed: +0 Bytes\nFileVault: +Yes")
+contains("${output}" "Name: +System\nCapacity Consumed: +0 Bytes\nFileVault: +No")
 contains("${output}" "42 : 'test-snapshot'")
+run(0 no-keylocker.img)
 
+foreach(name bad-magic bad-block-0 bad-block-1 bad-block-3 bad-block-4 bad-block-5)
+	run(1 "${name}.img")
+	contains("${errors}" "Unable to open APFS container")
+endforeach()
 foreach(name bad-volume bad-volume-magic bad-volume-type missing-volume)
 	run(3 "${name}.img")
 	contains("${errors}" "Volume 0: metadata unavailable or unreadable")
 	contains("${output}" "Name: +System")
 endforeach()
-
 run(0 unterminated-volume-name.img)
 contains("${output}" "Name: +x+\n")
 
