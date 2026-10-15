@@ -212,3 +212,7 @@ apfsutil <device>
 ```
 This is a new tool that just displays some information from a container. For now, it lists the volumes a container
 contains, and snapshots if there are some. This tool might be extended in the future.
+
+`apfsutil` returns status `3` when snapshot metadata is unavailable or unreadable.
+The tool reports the affected volume on standard error and continues with other volumes.
+Snapshot output before a failure remains visible.

@@ -142,6 +142,15 @@ if (BUILD_TESTING)
 	add_executable(apfs-btree-iterator-tests tests/BTreeIterator.cpp)
 	target_link_libraries(apfs-btree-iterator-tests apfs)
 	add_test(NAME btree-iterator COMMAND apfs-btree-iterator-tests)
+
+	add_executable(apfs-inventory-tests tests/Inventory.cpp)
+	target_link_libraries(apfs-inventory-tests apfs)
+	add_test(NAME inventory
+		COMMAND ${CMAKE_COMMAND}
+			-DAPFSUTIL=$<TARGET_FILE:apfsutil>
+			-DFIXTURES=$<TARGET_FILE:apfs-inventory-tests>
+			-DTEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/inventory-test-data
+			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/Inventory.cmake)
 endif()
 
 include(GNUInstallDirs)

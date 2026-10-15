@@ -4,6 +4,38 @@
 
 #include <cerrno>
 #include <cinttypes>
+#include <cstdio>
+
+enum ExitStatus { Success = 0, PartialInventory = 3 };
+
+static bool print_snapshots(ApfsContainer &container, const apfs_superblock_t &apsb)
+{
+	BTree snap_tree(container);
+	BTreeIterator it;
+	BTreeEntry bte;
+	const j_snap_metadata_key_t *sme_k;
+	const j_snap_metadata_val_t *sme_v;
+
+	if (!snap_tree.Init(apsb.apfs_snap_meta_tree_oid, apsb.apfs_o.o_xid) || !snap_tree.GetIteratorBegin(it))
+		return false;
+
+	for (;;) {
+		if (!it.GetEntry(bte)) break;
+		if (bte.key_len < sizeof(j_snap_metadata_key_t))
+			return false;
+		sme_k = reinterpret_cast<const j_snap_metadata_key_t*>(bte.key);
+		if ((sme_k->hdr.obj_id_and_type >> OBJ_TYPE_SHIFT) != APFS_TYPE_SNAP_METADATA) break;
+		if (!bte.val || bte.val_len < sizeof(j_snap_metadata_val_t))
+			return false;
+		sme_v = reinterpret_cast<const j_snap_metadata_val_t*>(bte.val);
+		if (sme_v->name_len == 0 || sme_v->name_len > bte.val_len - sizeof(j_snap_metadata_val_t) ||
+			sme_v->name[sme_v->name_len - 1] != 0)
+			return false;
+		printf("    %" PRIu64 " : '%s'\n", sme_k->hdr.obj_id_and_type & OBJ_ID_MASK, sme_v->name);
+		if (!it.next()) break;
+	}
+	return !it.HasError();
+}
 
 static void print_apfs_uuid(const apfs_uuid_t &uuid)
 {
@@ -60,6 +92,7 @@ int main(int argc, char *argv[])
 	uint64_t offset;
 	uint64_t size;
 	apfs_superblock_t apsb;
+	int status = Success;
 
 	g_debug = 0;
 
@@ -116,24 +149,11 @@ int main(int argc, char *argv[])
 				printf("FileVault:          ");
 				print_filevault(apsb.apfs_fs_flags & APFS_FS_CRYPTOFLAGS);
 				printf("\n");
-				if (apsb.apfs_snap_meta_tree_oid) {
+				if (apsb.apfs_snap_meta_tree_oid || apsb.apfs_num_snapshots) {
 					printf("Snapshots:\n");
-					BTree snap_tree(*container);
-					BTreeIterator it;
-					BTreeEntry bte;
-					const j_snap_metadata_key_t *sme_k;
-					const j_snap_metadata_val_t *sme_v;
-
-					snap_tree.Init(apsb.apfs_snap_meta_tree_oid, apsb.apfs_o.o_xid);
-					if (snap_tree.GetIteratorBegin(it)) {
-						for (;;) {
-							if (!it.GetEntry(bte)) break;
-							sme_k = reinterpret_cast<const j_snap_metadata_key_t*>(bte.key);
-							sme_v = reinterpret_cast<const j_snap_metadata_val_t*>(bte.val);
-							if ((sme_k->hdr.obj_id_and_type >> OBJ_TYPE_SHIFT) != APFS_TYPE_SNAP_METADATA) break;
-							printf("    %" PRIu64 " : '%s'\n", sme_k->hdr.obj_id_and_type & OBJ_ID_MASK, sme_v->name);
-							if (!it.next()) break;
-						}
+					if (!print_snapshots(*container, apsb)) {
+						fprintf(stderr, "Volume %d: snapshot metadata unavailable or unreadable.\n", k);
+						status = PartialInventory;
 					}
 				}
 				printf("\n");
@@ -152,5 +172,5 @@ int main(int argc, char *argv[])
 	}
 
 
-	return 0;
+	return status;
 }
