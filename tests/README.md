@@ -1,4 +1,4 @@
-# Inventory tests
+# Metadata inventory tests
 
 Run these commands from the repository root after installing the normal build dependencies:
 
@@ -21,19 +21,24 @@ They provide metadata for inventory tests, not complete filesystems for mounting
 
 The fixture contains a container superblock, checkpoint map, object map, space manager, two volume superblocks, and snapshot metadata.
 An empty volume slot separates volumes named `Data` and `System`, whose flags indicate encrypted and unencrypted storage respectively.
-A separate fixture contains a keylocker with an invalid checksum to test container initialization failure.
+A keylocker with an invalid checksum causes normal initialization to fail, while metadata-only initialization skips the keylocker entirely.
+The in-memory device records reads so the tests can detect unwanted keylocker or volume access.
 
 The suite covers:
 
 - Rejection of iteration without a root and removal of stale iterator state.
 - Normal initialization with valid, absent, and invalid keylockers.
+- Metadata inventory with the same invalid keylocker that prevents normal initialization.
+- Rejection of volume access, snapshot mounting, encrypted reads, key retrieval, and key dumps in metadata mode.
 - Rejection of invalid container magic and checksum failures in the container, checkpoint map, object map, and space manager.
 - Partial results for missing or damaged volume and snapshot metadata, including a failure after the first snapshot.
 - Rejection of short snapshot keys, missing or short values, and invalid snapshot names.
 - Rejection of invalid volume superblock types and bounded output for unterminated volume names.
-- Empty snapshot trees, encrypted-volume flags, missing arguments, and default invocation.
+- Empty snapshot trees, encrypted-volume flags, argument errors, help output, and default invocation.
+- Rejection of encrypted image headers without password prompts in metadata-only mode.
 
 The `inventory` test exercises error handling with normal initialization.
+The `metadata-only` test exercises the access restrictions and repeats integrity tests with the key manager disabled.
 
 These synthetic tests do not establish compatibility with any particular Apple Silicon disk or explain hardware key-manager failures.
 Hardware testing requires a separate read-only inventory of the target device.

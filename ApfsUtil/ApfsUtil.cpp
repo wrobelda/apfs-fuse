@@ -4,8 +4,20 @@
 
 #include <cinttypes>
 #include <cstdio>
+#include <cstring>
 
 enum ExitStatus { Success = 0, Failure = 1, ArgumentError = 2, PartialInventory = 3 };
+
+static void usage(FILE *out, const char *program)
+{
+	fprintf(out, "Usage: %s [--metadata-only] [--] <device>\n"
+		"List APFS volumes and snapshots.\n"
+		"  --metadata-only  Skip the key manager and inventory readable metadata only.\n"
+		"                   Accept devices and raw images without decryption or password prompts.\n"
+		"  -h, --help       Show this help.\n"
+		"Exit status: 0 success, 1 device/container failure, 2 argument error,\n"
+		"             3 incomplete volume or snapshot inventory.\n", program);
+}
 
 static bool print_snapshots(ApfsContainer &container, const apfs_superblock_t &apsb)
 {
@@ -91,19 +103,38 @@ int main(int argc, char *argv[])
 	uint64_t offset;
 	uint64_t size;
 	apfs_superblock_t apsb;
+	bool metadata_only = false;
+	bool options = true;
+	bool help = false;
 	int status = Success;
 
 	g_debug = 0;
 
-	if (argc < 2)
-	{
-		printf("Syntax: %s [device]\n", argv[0]);
+	for (int k = 1; k < argc; k++) {
+		if (options && !strcmp(argv[k], "--"))
+			options = false;
+		else if (options && !strcmp(argv[k], "--metadata-only") && !metadata_only)
+			metadata_only = true;
+		else if (options && (!strcmp(argv[k], "--help") || !strcmp(argv[k], "-h")))
+			help = true;
+		else if ((options && argv[k][0] == '-') || devname || argv[k][0] == '\0') {
+			fprintf(stderr, "Invalid argument: %s\n", argv[k]);
+			usage(stderr, argv[0]);
+			return ArgumentError;
+		} else
+			devname = argv[k];
+	}
+
+	if (help) {
+		usage(stdout, argv[0]);
+		return Success;
+	}
+	if (!devname) {
+		usage(stderr, argv[0]);
 		return ArgumentError;
 	}
 
-	devname = argv[1];
-
-	device = Device::OpenDevice(devname);
+	device = Device::OpenDevice(devname, metadata_only ? Device::ImageHandling::Raw : Device::ImageHandling::ByExtension);
 
 	if (device) {
 		offset = 0;
@@ -124,7 +155,9 @@ int main(int argc, char *argv[])
 
 		container = new ApfsContainer(device, offset, size);
 
-		if (container->Init()) {
+		if (container->Init(0, metadata_only ? ApfsContainer::VolumeAccessMode::MetadataOnly : ApfsContainer::VolumeAccessMode::Full)) {
+			if (metadata_only)
+				printf("Metadata-only inventory: key manager skipped.\n");
 			// printf("Listing volumes:\n");
 			for (int k = 0; k < NX_MAX_FILE_SYSTEMS; k++) {
 				if (!container->HasVolume(k))

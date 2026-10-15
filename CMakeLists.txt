@@ -151,6 +151,12 @@ if (BUILD_TESTING)
 			-DFIXTURES=$<TARGET_FILE:apfs-inventory-tests>
 			-DTEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/inventory-test-data
 			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/Inventory.cmake)
+	add_test(NAME metadata-only
+		COMMAND ${CMAKE_COMMAND}
+			-DAPFSUTIL=$<TARGET_FILE:apfsutil>
+			-DFIXTURES=$<TARGET_FILE:apfs-inventory-tests>
+			-DTEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/metadata-test-data
+			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/MetadataOnly.cmake)
 endif()
 
 include(GNUInstallDirs)

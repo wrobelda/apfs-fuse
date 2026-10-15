@@ -51,9 +51,10 @@ ApfsContainer::~ApfsContainer()
 {
 }
 
-bool ApfsContainer::Init(xid_t req_xid)
+bool ApfsContainer::Init(xid_t req_xid, VolumeAccessMode access_mode)
 {
 	m_initialized = false;
+	m_access_mode = access_mode;
 	std::vector<uint8_t> blk;
 
 	blk.resize(0x1000);
@@ -183,7 +184,7 @@ bool ApfsContainer::Init(xid_t req_xid)
 
 	// m_sb.nx_spaceman_oid
 
-	if ((m_nx.nx_keylocker.pr_start_addr != 0) && (m_nx.nx_keylocker.pr_block_count != 0))
+	if (access_mode == VolumeAccessMode::Full && (m_nx.nx_keylocker.pr_start_addr != 0) && (m_nx.nx_keylocker.pr_block_count != 0))
 	{
 		if (!m_keymgr.Init(m_nx.nx_keylocker.pr_start_addr, m_nx.nx_keylocker.pr_block_count, m_nx.nx_uuid))
 		{
@@ -203,7 +204,7 @@ ApfsVolume *ApfsContainer::GetVolume(unsigned int fsid, const std::string &passp
 	omap_res_t omr;
 	bool rc;
 
-	if (oid == 0)
+	if (oid == 0 || !CanAccessVolumes())
 		return nullptr;
 
 	m_passphrase = passphrase;
@@ -317,7 +318,7 @@ bool ApfsContainer::ReadAndVerifyHeaderBlock(uint8_t * data, paddr_t paddr) cons
 
 bool ApfsContainer::GetVolumeKey(uint8_t *key, const apfs_uuid_t & vol_uuid, const char *password)
 {
-	if (!m_keymgr.IsValid())
+	if (!CanAccessVolumes() || !m_keymgr.IsValid())
 		return false;
 
 	if (password)
@@ -335,11 +336,15 @@ bool ApfsContainer::GetVolumeKey(uint8_t *key, const apfs_uuid_t & vol_uuid, con
 
 bool ApfsContainer::GetPasswordHint(std::string & hint, const apfs_uuid_t & vol_uuid)
 {
+	if (!CanAccessVolumes())
+		return false;
 	return m_keymgr.GetPasswordHint(hint, vol_uuid);
 }
 
 void ApfsContainer::dump(BlockDumper& bd)
 {
+	if (!CanAccessVolumes())
+		return;
 	std::vector<uint8_t> blk;
 	paddr_t paddr;
 	uint32_t index;

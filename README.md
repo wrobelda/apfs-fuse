@@ -214,11 +214,19 @@ take a very long time to run on big volumes, and create huge log files. So using
 apfsutil <device>
 ```
 
+If key-manager initialization fails, use `--metadata-only` to list readable metadata without loading keys:
+
+```
+apfsutil --metadata-only <device>
+```
+
+This mode bypasses the DMG and sparse-image readers.
+
 Exit statuses:
 
 - `0`: Success.
 - `1`: Cannot open the device or initialize the container.
-- `2`: Missing device argument.
+- `2`: Invalid arguments.
 - `3`: Incomplete results because volume or snapshot metadata is unreadable.
 
 For incomplete results, the tool reports errors and continues with the remaining volumes.

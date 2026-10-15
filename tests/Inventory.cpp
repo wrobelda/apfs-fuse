@@ -1,10 +1,14 @@
 #include <ApfsLib/ApfsContainer.h>
+#include <ApfsLib/ApfsVolume.h>
+#include <ApfsLib/BlockDumper.h>
 #include <ApfsLib/Util.h>
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 
 static void require(bool condition, const char *message)
 {
@@ -205,10 +209,51 @@ public:
 	}
 };
 
+static void test_access()
+{
+	Fixture image;
+	image.bytes[9 * Fixture::block_size] ^= 1;
+	ApfsContainer container(&image, 0, image.GetSize());
+	require(!container.Init(), "default initialization rejects key-manager failure");
+	require(!container.CanAccessVolumes(), "failed initialization denies volume access");
+	require(std::count(image.reads.begin(), image.reads.end(), 9) == 1, "default reads keylocker");
+	image.reads.clear();
+	require(container.Init(0, ApfsContainer::VolumeAccessMode::MetadataOnly), "metadata initialization succeeds");
+	require(std::count(image.reads.begin(), image.reads.end(), 9) == 0, "metadata skips keylocker");
+	apfs_superblock_t vol;
+	require(container.HasVolume(0) && !container.HasVolume(1) && container.HasVolume(2), "occupied slots");
+	require(!container.HasVolume(NX_MAX_FILE_SYSTEMS), "slot bounds");
+	require(container.GetVolumeInfo(0, vol) && vol.apfs_fs_flags == 0, "encrypted volume flags");
+	require(container.GetVolumeInfo(2, vol) && vol.apfs_fs_flags == APFS_FS_UNENCRYPTED, "unencrypted volume flags");
+	const size_t reads = image.reads.size();
+	require(!container.GetVolume(0) && !container.GetVolume(2), "no volume access");
+	require(!container.GetVolume(0, "", 42), "no snapshot mount");
+	ApfsVolume direct(container);
+	require(!direct.Init(6) && !direct.MountSnapshot(6, 42), "no direct volume initialization");
+	uint8_t buffer[Fixture::block_size] = {};
+	require(!direct.ReadBlocks(buffer, 6, 1, 6), "no encrypted reads");
+	std::string hint;
+	require(!container.GetVolumeKey(buffer, vol.apfs_vol_uuid), "no key retrieval");
+	require(!container.GetPasswordHint(hint, vol.apfs_vol_uuid), "no password hints");
+	require(!container.IsUnencrypted(), "skipped key manager does not imply unencrypted");
+	std::ostringstream output;
+	BlockDumper dumper(output, Fixture::block_size);
+	container.dump(dumper);
+	require(output.str().empty() && image.reads.size() == reads, "no dump or hidden volume reads");
+
+	// A previously initialized key manager must not grant access in metadata mode.
+	image.checksum(9);
+	require(container.Init() && container.IsUnencrypted(), "normal initialization with valid keybag");
+	require(container.Init(0, ApfsContainer::VolumeAccessMode::MetadataOnly), "switch to metadata access");
+	require(!container.GetVolumeKey(buffer, vol.apfs_vol_uuid, "unused") &&
+		!container.GetPasswordHint(hint, vol.apfs_vol_uuid) && !container.IsUnencrypted(), "no stale key-manager access");
+}
+
 int main(int argc, char **argv)
 {
 	require(argc == 2, "fixture output directory argument");
 	const std::string dir = std::string(argv[1]) + "/";
+	test_access();
 	Fixture key_failure;
 	key_failure.bytes[9 * Fixture::block_size] ^= 1;
 	key_failure.write(dir + "key-failure.img");
@@ -224,8 +269,10 @@ int main(int argc, char **argv)
 	for (size_t block : {0, 1, 3, 4, 5}) {
 		Fixture image;
 		image.bytes[block * Fixture::block_size] ^= 1;
-		ApfsContainer container(&image, 0, image.GetSize());
-		require(!container.Init(), "container checksum failure remains fatal");
+		for (auto access_mode : {ApfsContainer::VolumeAccessMode::Full, ApfsContainer::VolumeAccessMode::MetadataOnly}) {
+			ApfsContainer container(&image, 0, image.GetSize());
+			require(!container.Init(0, access_mode), "container checksum failure remains fatal");
+		}
 		image.write(dir + "bad-block-" + std::to_string(block) + ".img");
 	}
 	Fixture invalid;
@@ -297,6 +344,10 @@ int main(int argc, char **argv)
 		malformed.checksum(8);
 		malformed.write(dir + "snapshot-" + kind + ".img");
 	}
+	Fixture encrypted_image;
+	memcpy(encrypted_image.bytes.data(), "encrcdsa", 8);
+	encrypted_image.write(dir + "encrypted.dmg");
+	encrypted_image.write(dir + "encrypted.sparseimage");
 	std::cout << "Inventory tests passed.\n";
 	return 0;
 }
