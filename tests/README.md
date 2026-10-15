@@ -20,3 +20,4 @@ The tests cover unavailable B-tree roots, stale iterators, unreadable child node
 They also cover empty snapshot trees and failures after the first snapshot.
 
 The tests distinguish empty volume slots from unreadable superblocks and reject invalid volume magic and object types.
+The volume-name test fills the name field without a terminator and ensures that output stops at the field boundary.

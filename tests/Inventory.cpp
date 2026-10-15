@@ -222,6 +222,12 @@ int main(int argc, char **argv)
 	volume_type.object<apfs_superblock_t>(6).apfs_o.o_type = OBJECT_TYPE_OMAP;
 	volume_type.checksum(6);
 	volume_type.write(dir + "bad-volume-type.img");
+	Fixture volume_name;
+	auto &named_volume = volume_name.object<apfs_superblock_t>(6);
+	memset(named_volume.apfs_volname, 'x', sizeof(named_volume.apfs_volname));
+	named_volume.apfs_next_doc_id = 0x41414141;
+	volume_name.checksum(6);
+	volume_name.write(dir + "unterminated-volume-name.img");
 	Fixture missing_volume;
 	missing_volume.object<omap_key_t>(4, sizeof(btree_node_phys_t) + 2 * sizeof(kvoff_t)).ok_oid = 999;
 	missing_volume.checksum(4);

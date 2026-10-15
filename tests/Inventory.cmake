@@ -9,6 +9,9 @@ foreach(name bad-volume bad-volume-magic bad-volume-type missing-volume)
 	contains("${output}" "Name: +System")
 endforeach()
 
+run(0 unterminated-volume-name.img)
+contains("${output}" "Name: +x+\n")
+
 foreach(name bad-snapshots missing-snapshots bad-first-snapshot bad-later-snapshot bad-snapshot-name
 	snapshot-short-key snapshot-short-value snapshot-missing-value snapshot-empty-name snapshot-unterminated-name)
 	run(3 "${name}.img")

@@ -143,7 +143,7 @@ int main(int argc, char *argv[])
 				printf("Role:               ");
 				print_role(apsb.apfs_role);
 				printf("\n");
-				printf("Name:               %s", apsb.apfs_volname);
+				printf("Name:               %.*s", static_cast<int>(sizeof(apsb.apfs_volname)), apsb.apfs_volname);
 				if (apsb.apfs_incompatible_features & APFS_INCOMPAT_CASE_INSENSITIVE)
 					printf(" (Case-insensitive)\n");
 				else if (apsb.apfs_incompatible_features & APFS_INCOMPAT_NORMALIZATION_INSENSITIVE)
